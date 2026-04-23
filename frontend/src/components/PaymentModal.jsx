@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import html2pdf from 'html2pdf.js';
+import { logActivity } from '../utils/logger';
 
 const PaymentModal = ({ reservation, onClose, onPaymentSuccess }) => {
     const [method, setMethod] = useState(''); // 'cash' | 'card'
@@ -26,6 +27,8 @@ const PaymentModal = ({ reservation, onClose, onPaymentSuccess }) => {
                 .update({ status: 'paid' }).eq('id', reservation.id);
 
             if (resError) throw resError;
+
+            await logActivity('UPDATE', 'RESERVATION', `Liquidó en ${method === 'cash' ? 'efectivo' : 'tarjeta'} el pago de la reserva #${reservation.id} por $${reservation.total_price} MXN`);
 
             // Safe fallback string conversion to prevent integer substring crash
             const safeId = reservation.id ? String(reservation.id) : String(Math.floor(Math.random() * 1000000));

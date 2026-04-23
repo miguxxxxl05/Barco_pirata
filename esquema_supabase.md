@@ -15,6 +15,20 @@ ALTER TABLE reservations ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.u
 ADD COLUMN IF NOT EXISTS cancellation_reason TEXT;
 ```
 
+## 🚨 Bitácora de Auditoría (Activity Logs)
+¡EJECUTA ESTO EN EL SQL EDITOR PARA QUE LEVANTAR EL MÓDULO DE LOGS!
+
+```sql
+CREATE TABLE IF NOT EXISTS activity_logs (
+  id SERIAL PRIMARY KEY,
+  user_email TEXT NOT NULL,
+  action_type TEXT NOT NULL, -- 'CREATE', 'UPDATE', 'DELETE'
+  entity_type TEXT NOT NULL, -- 'PACKAGE', 'RESERVATION', 'SYSTEM'
+  description TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
+);
+```
+
 ---
 ## Estructura Completa Desde Cero
 ```sql

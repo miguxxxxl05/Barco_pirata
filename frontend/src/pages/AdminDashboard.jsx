@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { supabase } from '../supabaseClient';
 import PaymentModal from '../components/PaymentModal';
+import DailyReportModal from '../components/DailyReportModal';
+import AnnualReportModal from '../components/AnnualReportModal';
+import ActivityLogModal from '../components/ActivityLogModal';
+import { logActivity } from '../utils/logger';
 
 const AdminDashboard = () => {
     const [reservations, setReservations] = useState([]);
@@ -17,6 +21,7 @@ const AdminDashboard = () => {
             const { error } = await supabase.from('global_settings').upsert({ id: 1, boat_capacity: tempCapacity });
             if (error) throw error;
             setGlobalBoatCapacity(tempCapacity);
+            await logActivity('UPDATE', 'SYSTEM', `Modificó el límite global del barco a ${tempCapacity} pasajeros.`);
             alert("¡Límite del barco guardado exitosamente!");
         } catch (err) {
             alert("Error al guardar: " + err.message + "\n\n(Importante: Recuerda ejecutar el comando SQL de la tabla 'global_settings' en Supabase para que comience a funcionar).");
@@ -24,8 +29,11 @@ const AdminDashboard = () => {
     };
     const [imageFile, setImageFile] = useState(null);
     const [isCreating, setIsCreating] = useState(false);
-    const [editingPkg, setEditingPkg] = useState(null); // Para guardar el paquete que el usuario decide editar
+    const [editingPkg, setEditingPkg] = useState(null);
     const [activePaymentReservation, setActivePaymentReservation] = useState(null);
+    const [reportModalDate, setReportModalDate] = useState(null);
+    const [showAnnualReport, setShowAnnualReport] = useState(false);
+    const [showActivityLog, setShowActivityLog] = useState(false);
 
     // Filtros
     const [filterDate, setFilterDate] = useState('');
@@ -125,6 +133,8 @@ const AdminDashboard = () => {
 
                         if (error) throw error;
 
+                        await logActivity('UPDATE', 'RESERVATION', newStatus === 'in_progress' ? `Inició abordaje masivo de pasajeros (Día ${targetRes.reservation_date})` : `Finalizó viaje masivo de pasajeros (Día ${targetRes.reservation_date})`);
+
                         const { data: resData } = await supabase.from('reservations').select('*, packages(name)').order('created_at', { ascending: false });
                         if (resData) setReservations(resData);
                         return;
@@ -134,7 +144,9 @@ const AdminDashboard = () => {
 
             const { error } = await supabase.from('reservations').update({ status: newStatus, cancellation_reason: reason }).eq('id', id);
             if (error) throw error;
-            setReservations(reservations.map(r => r.id === id ? { ...r, status: newStatus, cancellation_reason: reason } : r));
+
+            await logActivity('UPDATE', 'RESERVATION', `Actualizó reserva #${id} al estatus: ${newStatus}`);
+            setReservations(prev => prev.map(r => r.id === id ? { ...r, status: newStatus, cancellation_reason: reason } : r));
         } catch (err) {
             alert("Error al actualizar estado: " + err.message);
         }
@@ -173,9 +185,10 @@ const AdminDashboard = () => {
 
             if (error) throw error;
 
+            await logActivity('CREATE', 'PACKAGE', `Creó un nuevo paquete comercial: ${newPackage.name}`);
             alert("¡Paseo creado con éxito y foto subida a tu nube!");
             if (data && data.length > 0 && data[0]) {
-                setPackages([...packages, data[0]]);
+                setPackages(prev => [...prev, data[0]]);
             } else {
                 // Refetch preventivo por si Supabase oculta el ID del insert
                 const { data: recData } = await supabase.from('packages').select('*').order('id', { ascending: true });
@@ -201,7 +214,8 @@ const AdminDashboard = () => {
         try {
             const { error } = await supabase.from('packages').delete().eq('id', id);
             if (error) throw error;
-            setPackages(packages.filter(p => p.id !== id));
+            await logActivity('DELETE', 'PACKAGE', `Eliminó el paquete (ID ${id}) del catálogo`);
+            setPackages(prev => prev.filter(p => p.id !== id));
         } catch (err) {
             alert("⚠️ No fue posible eliminarlo. Es posible que existan reservaciones pasadas ligadas a este paquete, para proteger el sistema, Postgres impidió el borrado.");
         }
@@ -217,8 +231,9 @@ const AdminDashboard = () => {
             }).eq('id', pkg.id);
 
             if (error) throw error;
-            setPackages(packages.map(p => p.id === pkg.id ? pkg : p));
+            setPackages(prev => prev.map(p => p.id === pkg.id ? pkg : p));
             setEditingPkg(null);
+            await logActivity('UPDATE', 'PACKAGE', `Ajustó los precios/detalles del paquete: ${pkg.name}`);
             alert("¡Editado correctamente!");
         } catch (err) {
             alert("Error al actualizar la información: " + err.message);
@@ -227,10 +242,14 @@ const AdminDashboard = () => {
 
     return (
         <div className="container" style={{ padding: '100px 20px', minHeight: '70vh', backgroundColor: 'var(--white)' }}>
-            <div style={{ marginBottom: '20px' }}>
+            <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Link to="/" style={{ display: 'inline-block', padding: '10px 15px', backgroundColor: '#333', color: '#fff', textDecoration: 'none', borderRadius: '4px', fontWeight: 'bold' }}>
                     Volver al Barco
                 </Link>
+                <button onClick={() => setShowActivityLog(true)} style={{ background: '#b59250', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                    Auditoría del Sistema
+                </button>
             </div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '2.5rem', marginBottom: '10px' }}>Mando de Control del Barco</h2>
             <p style={{ color: 'var(--text-light)', marginBottom: '40px' }}>Supervisa reservaciones y edita el catálogo directamente (Opción 2 Profesional).</p>
@@ -350,8 +369,6 @@ const AdminDashboard = () => {
             {/* ----------------- SECCIÓN 3: RESERVACIONES REALES ----------------- */}
             <h3 style={{ marginBottom: '20px' }}>Bitácora de Reservaciones Entrantes</h3>
 
-            {/* La tabla de reservaciones va debajo */}
-
             {/* ----------------- FILTROS ----------------- */}
             <div style={{ display: 'flex', gap: '15px', marginBottom: '20px', flexWrap: 'wrap', backgroundColor: '#f9f9f9', padding: '15px', borderRadius: '8px', border: '1px solid var(--border-color)' }}>
                 <div style={{ display: 'flex', flexDirection: 'column' }}>
@@ -379,8 +396,18 @@ const AdminDashboard = () => {
                         <option value="cancelled">Cancelado / Rechazado</option>
                     </select>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px' }}>
                     <button onClick={() => { setFilterDate(''); setFilterPackage(''); setFilterStatus(''); }} style={{ padding: '8px 15px', background: '#e2e6ea', color: '#333', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Limpiar Filtros</button>
+                    {filterDate && (
+                        <button onClick={() => setReportModalDate(filterDate)} className="btn-primary" style={{ padding: '8px 15px', borderRadius: '4px', background: '#2c2c2c', display: 'flex', alignItems: 'center', gap: '5px' }}>
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                            Diario
+                        </button>
+                    )}
+                    <button onClick={() => setShowAnnualReport(true)} className="btn-primary" style={{ padding: '8px 15px', borderRadius: '4px', background: '#b59250', display: 'flex', alignItems: 'center', gap: '5px', boxShadow: '0 2px 4px rgba(181,146,80,0.3)' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+                        Anual
+                    </button>
                 </div>
             </div>
             {loading ? <p>Cargando bitácora de reservas...</p> : (
@@ -456,6 +483,29 @@ const AdminDashboard = () => {
                     onClose={() => setActivePaymentReservation(null)}
                     onPaymentSuccess={handlePaymentSuccess}
                 />
+            )}
+
+            {/* ----------------- MODAL DE REPORTES DIARIOS ----------------- */}
+            {reportModalDate && (
+                <DailyReportModal
+                    date={reportModalDate}
+                    reservations={reservations}
+                    packages={packages}
+                    onClose={() => setReportModalDate(null)}
+                />
+            )}
+
+            {/* ----------------- MODAL DE REPORTES ANUALES ----------------- */}
+            {showAnnualReport && (
+                <AnnualReportModal
+                    reservations={reservations}
+                    onClose={() => setShowAnnualReport(false)}
+                />
+            )}
+
+            {/* ----------------- MODAL DE AUDITORÍA LOGS ----------------- */}
+            {showActivityLog && (
+                <ActivityLogModal onClose={() => setShowActivityLog(false)} />
             )}
         </div>
     );
