@@ -1,0 +1,201 @@
+.booking-bar {
+    position: absolute;
+    bottom: -40px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    background-color: var(--white);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+    z-index: 10;
+    border-radius: 8px;
+    /* overflow: hidden; ELIMINADO para no cortar el calendario */
+}
+
+.react-datepicker-popper {
+    z-index: 9999 !important;
+}
+
+.booking-fields {
+    display: flex;
+    padding: 20px 40px;
+    align-items: center;
+}
+
+.booking-field {
+    display: flex;
+    flex-direction: column;
+    margin-right: 40px;
+    border-right: 1px solid var(--border-color);
+    padding-right: 40px;
+}
+
+.booking-field:last-child {
+    border-right: none;
+    margin-right: 0;
+    padding-right: 0;
+}
+
+.booking-field label {
+    font-size: 0.75rem;
+    color: var(--text-light);
+    font-weight: 600;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+}
+
+.custom-datepicker {
+    border: none;
+    font-size: 1.3rem;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    color: var(--text-dark);
+    background: transparent;
+    outline: none;
+    cursor: pointer;
+    width: 250px;
+}
+
+.custom-datepicker::placeholder {
+    color: #ccc;
+    font-weight: 400;
+    font-family: 'Open Sans', sans-serif;
+    font-size: 1.1rem;
+}
+
+/* Personalización del Popup de Datepicker */
+.react-datepicker {
+    font-family: 'Open Sans', sans-serif !important;
+    border: none !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1) !important;
+    border-radius: 12px !important;
+    padding: 15px !important;
+    font-size: 1.1rem !important;
+}
+
+.react-datepicker__header {
+    background-color: var(--white) !important;
+    border-bottom: none !important;
+    padding-bottom: 15px !important;
+}
+
+.react-datepicker__current-month {
+    font-family: 'Playfair Display', serif !important;
+    font-size: 1.3rem !important;
+    color: var(--text-dark) !important;
+}
+
+.react-datepicker__day--selected {
+    background-color: var(--primary-color) !important;
+    border-radius: 50% !important;
+    color: white !important;
+}
+
+.react-datepicker__day:hover {
+    background-color: var(--primary-hover) !important;
+    border-radius: 50% !important;
+    color: white !important;
+}
+
+.react-datepicker__day--keyboard-selected {
+    background-color: transparent !important;
+    color: inherit !important;
+}
+
+.react-datepicker__day.full-day-red {
+    position: relative;
+    background-color: #ffcccc !important;
+    color: #cc0000 !important;
+    font-weight: bold;
+    border-radius: 50% !important;
+    pointer-events: auto !important;
+    cursor: not-allowed !important;
+}
+
+.react-datepicker__day.full-day-red:hover {
+    background-color: #ffcccc !important;
+    cursor: not-allowed !important;
+}
+
+.react-datepicker__day.full-day-red:hover::after {
+    content: "Barco No Disponible, Se encuentra lleno";
+    position: absolute;
+    bottom: 110%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.85);
+    color: white;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 0.75rem;
+    white-space: nowrap;
+    z-index: 99999;
+    pointer-events: none;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.sold-out-legend {
+    font-size: 0.65rem;
+    color: #cc0000;
+    margin-top: 5px;
+    font-weight: bold;
+    letter-spacing: 0.5px;
+}
+
+/* Contador de Personas */
+.counter {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.counter-btn {
+    background: var(--bg-light);
+    border: 1px solid var(--border-color);
+    color: var(--text-dark);
+    font-size: 1.2rem;
+    width: 35px;
+    height: 35px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.counter-btn:hover {
+    background: var(--primary-color);
+    color: var(--white);
+    border-color: var(--primary-color);
+}
+
+.counter-input {
+    border: none;
+    font-size: 1.6rem;
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    color: var(--text-dark);
+    text-align: center;
+    width: 60px;
+    outline: none;
+    background: transparent;
+}
+
+/* Esconder flechas del input number para que solo quede nuestro diseño */
+.counter-input::-webkit-outer-spin-button,
+.counter-input::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.counter-input[type=number] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+}
+
+.booking-btn {
+    padding: 0 40px;
+    font-size: 0.95rem;
+    height: auto;
+    border-radius: 0 8px 8px 0;
+}
