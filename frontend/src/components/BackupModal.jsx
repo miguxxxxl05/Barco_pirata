@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { supabase } from '../supabaseClient';
 import { logActivity } from '../utils/logger';
 
@@ -77,6 +78,113 @@ const BackupModal = ({ onClose }) => {
         } catch (err) {
             await registerBackupLog('MANUAL', null, 0, 'FAILED', err.message);
             alert('❌ Error al crear respaldo: ' + err.message);
+        } finally {
+            setWorking(false);
+        }
+    };
+
+    const handleCreateExcelBackup = async () => {
+        setWorking(true);
+        try {
+            const [{ data: reservations }, { data: packages }, { data: payments }, { data: logs }] = await Promise.all([
+                supabase.from('reservations').select('*, packages(name)').order('created_at', { ascending: false }),
+                supabase.from('packages').select('*').order('id', { ascending: true }),
+                supabase.from('payments').select('*').order('payment_date', { ascending: false }),
+                supabase.from('activity_logs').select('*').order('created_at', { ascending: false }).limit(500),
+            ]);
+
+            const fmtDate = (d) => d ? new Date(d).toLocaleString('es-MX') : '';
+
+            const reservationsSheet = (reservations || []).map(r => ({
+                'Folio': String(r.id).substring(0, 8).toUpperCase(),
+                'ID Completo': r.id,
+                'Paquete': r.packages?.name || '—',
+                'Fecha del Paseo': r.reservation_date,
+                'Personas': r.persons_count,
+                'Contacto': r.contact_name,
+                'Teléfono': r.contact_phone,
+                'Total (MXN)': Number(r.total_price) || 0,
+                'Estado': r.status,
+                'Motivo de Cancelación': r.cancellation_reason || '',
+                'Fecha de Solicitud': fmtDate(r.created_at),
+            }));
+
+            const packagesSheet = (packages || []).map(p => ({
+                'ID': p.id,
+                'Nombre': p.name,
+                'Precio (MXN)': Number(p.price) || 0,
+                'Descripción': p.description || '',
+                'Ideal para': p.ideal_for || '',
+                'URL Imagen': p.image_url || '',
+                'Creado': fmtDate(p.created_at),
+            }));
+
+            const paymentsSheet = (payments || []).map(pay => ({
+                'ID Pago': pay.id,
+                'Reserva': String(pay.reservation_id).substring(0, 8).toUpperCase(),
+                'Monto (MXN)': Number(pay.amount) || 0,
+                'Método': pay.payment_method === 'cash' ? 'Efectivo' : 'Tarjeta',
+                'Últimos 4': pay.card_number_last_4 || '',
+                'Estado': pay.payment_status,
+                'Procesado por': pay.processed_by || '',
+                'Fecha': fmtDate(pay.payment_date),
+            }));
+
+            const logsSheet = (logs || []).map(l => ({
+                'Fecha': fmtDate(l.created_at),
+                'Usuario': l.user_email,
+                'Acción': l.action_type,
+                'Entidad': l.entity_type,
+                'Descripción': l.description,
+                'Severidad': l.severity,
+            }));
+
+            const wb = XLSX.utils.book_new();
+
+            const addSheet = (name, rows) => {
+                const ws = XLSX.utils.json_to_sheet(rows.length > 0 ? rows : [{ Aviso: 'Sin registros' }]);
+                if (rows.length > 0) {
+                    const headers = Object.keys(rows[0]);
+                    ws['!cols'] = headers.map(h => {
+                        const maxLen = Math.max(h.length, ...rows.map(r => String(r[h] ?? '').length));
+                        return { wch: Math.min(Math.max(maxLen + 2, 10), 50) };
+                    });
+                }
+                XLSX.utils.book_append_sheet(wb, ws, name);
+            };
+
+            addSheet('Reservaciones', reservationsSheet);
+            addSheet('Paquetes', packagesSheet);
+            addSheet('Pagos', paymentsSheet);
+            addSheet('Bitácora', logsSheet);
+
+            const summarySheet = [
+                { Métrica: 'Generado', Valor: new Date().toLocaleString('es-MX') },
+                { Métrica: 'Proyecto', Valor: 'Barco Pirata - El Rey del Mar' },
+                { Métrica: 'Reservaciones', Valor: reservationsSheet.length },
+                { Métrica: 'Paquetes', Valor: packagesSheet.length },
+                { Métrica: 'Pagos', Valor: paymentsSheet.length },
+                { Métrica: 'Eventos en Bitácora', Valor: logsSheet.length },
+                { Métrica: 'Ingresos Totales (MXN)', Valor: paymentsSheet.reduce((sum, p) => sum + (p['Monto (MXN)'] || 0), 0) },
+            ];
+            const summaryWs = XLSX.utils.json_to_sheet(summarySheet);
+            summaryWs['!cols'] = [{ wch: 28 }, { wch: 35 }];
+            XLSX.utils.book_append_sheet(wb, summaryWs, 'Resumen');
+            wb.SheetNames.unshift(wb.SheetNames.pop());
+
+            const totalRecords = reservationsSheet.length + packagesSheet.length + paymentsSheet.length + logsSheet.length;
+            const dateStr = new Date().toISOString().slice(0, 10);
+            const fileName = `respaldo_barco_pirata_${dateStr}.xlsx`;
+
+            XLSX.writeFile(wb, fileName);
+
+            await registerBackupLog('EXCEL', fileName, totalRecords, 'SUCCESS');
+            await logActivity('BACKUP', 'SYSTEM', `Respaldo Excel creado: ${fileName} (${totalRecords} registros)`, 'INFO');
+            await fetchLogs();
+            alert(`✅ Respaldo Excel creado.\n📁 Archivo: ${fileName}\n📊 Total de registros: ${totalRecords}\n📑 Hojas: Resumen, Reservaciones, Paquetes, Pagos, Bitácora`);
+        } catch (err) {
+            await registerBackupLog('EXCEL', null, 0, 'FAILED', err.message);
+            alert('❌ Error al crear respaldo Excel: ' + err.message);
         } finally {
             setWorking(false);
         }
@@ -173,8 +281,10 @@ const BackupModal = ({ onClose }) => {
     };
 
     const getTypeBadge = (type) => {
-        const labels = { MANUAL: 'Manual', AUTO: 'Automático', RESTORE: 'Restauración' };
-        return <span style={{ padding: '3px 8px', background: '#e2e3e5', color: '#383d41', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>{labels[type] || type}</span>;
+        const labels = { MANUAL: 'Manual (JSON)', AUTO: 'Automático', RESTORE: 'Restauración', EXCEL: 'Excel' };
+        const colors = { EXCEL: { bg: '#d4edda', color: '#155724' }, RESTORE: { bg: '#fff3cd', color: '#856404' } };
+        const c = colors[type] || { bg: '#e2e3e5', color: '#383d41' };
+        return <span style={{ padding: '3px 8px', background: c.bg, color: c.color, borderRadius: '4px', fontSize: '0.75rem', fontWeight: 'bold' }}>{labels[type] || type}</span>;
     };
 
     return (
@@ -208,7 +318,7 @@ const BackupModal = ({ onClose }) => {
                         <div style={{ background: '#faf8f4', border: '1px solid #ede8da', borderRadius: '8px', padding: '25px', marginBottom: '20px' }}>
                             <h3 style={{ margin: '0 0 8px 0', color: '#2c2c2c' }}>Respaldo Completo del Sistema</h3>
                             <p style={{ color: '#666', marginBottom: '20px', lineHeight: '1.6', fontSize: '0.9rem' }}>
-                                Genera un archivo <strong style={{ color: '#b59250' }}>.json</strong> con copia de todos los datos. Incluye reservaciones, paquetes, pagos y bitácora.
+                                Descarga todos los datos del sistema en el formato que prefieras. Incluye reservaciones, paquetes, pagos y bitácora.
                             </p>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px', marginBottom: '22px' }}>
                                 {[
@@ -226,10 +336,19 @@ const BackupModal = ({ onClose }) => {
                                     </div>
                                 ))}
                             </div>
-                            <button onClick={handleCreateBackup} disabled={working} style={{ background: working ? '#ccc' : '#b59250', color: '#fff', border: 'none', padding: '12px 28px', borderRadius: '8px', cursor: working ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                                {working ? 'Generando respaldo...' : 'Descargar Respaldo Ahora'}
-                            </button>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px' }}>
+                                <button onClick={handleCreateExcelBackup} disabled={working} style={{ background: working ? '#ccc' : '#1d6f42', color: '#fff', border: 'none', padding: '12px 28px', borderRadius: '8px', cursor: working ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="16" y2="17"/></svg>
+                                    {working ? 'Generando...' : 'Descargar como Excel (.xlsx)'}
+                                </button>
+                                <button onClick={handleCreateBackup} disabled={working} style={{ background: working ? '#ccc' : '#b59250', color: '#fff', border: 'none', padding: '12px 28px', borderRadius: '8px', cursor: working ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                    {working ? 'Generando...' : 'Descargar como JSON'}
+                                </button>
+                            </div>
+                            <p style={{ margin: '14px 0 0 0', color: '#888', fontSize: '0.8rem' }}>
+                                <strong style={{ color: '#1d6f42' }}>Excel:</strong> Para abrir en Microsoft Excel, Google Sheets o Numbers — incluye una hoja por tabla con encabezados en español. <strong style={{ color: '#b59250' }}>JSON:</strong> Para restaurar el sistema desde el panel "Restaurar".
+                            </p>
                         </div>
                         <div style={{ background: '#fffbf0', border: '1px solid #ffeeba', borderRadius: '8px', padding: '15px' }}>
                             <strong style={{ color: '#856404' }}>📌 Recomendaciones de seguridad:</strong>
