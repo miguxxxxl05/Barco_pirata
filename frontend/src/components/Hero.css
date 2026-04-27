@@ -1,42 +1,132 @@
 .hero {
     position: relative;
-    height: 600px;
-    background-color: #333;
-    /* Se actualizará el fondo con la imagen local */
-    background-image: url('/hero-bg.png');
-    background-size: cover;
-    background-position: center;
+    height: 92vh;
+    min-height: 600px;
+    background-color: #1a1814;
     display: flex;
     align-items: center;
     justify-content: center;
+    overflow: hidden;
 }
 
+/* ── Slides con animación Ken Burns ── */
+.hero-bg-slide {
+    position: absolute;
+    inset: 0;
+    background-size: cover;
+    background-position: center;
+    opacity: 0;
+    transition: opacity 1.2s ease-in-out;
+    will-change: transform, opacity;
+}
+
+.hero-bg-slide.active {
+    opacity: 1;
+    animation: kenburns 7s ease-in-out forwards;
+}
+
+@keyframes kenburns {
+    0%   { transform: scale(1)    translate(0%,    0%);   }
+    100% { transform: scale(1.07) translate(1.2%, -0.8%); }
+}
+
+/* ── Overlay ── */
 .hero-overlay {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    inset: 0;
+    background: linear-gradient(
+        to bottom,
+        rgba(0,0,0,0.2) 0%,
+        rgba(10,8,5,0.5) 65%,
+        rgba(10,8,5,0.8) 100%
+    );
+    z-index: 1;
 }
 
+/* ── Contenido ── */
 .hero-content {
     position: relative;
     z-index: 2;
     text-align: center;
-    color: var(--white);
+    padding: 0 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 80px;
 }
 
-.hero-content h1 {
-    font-size: 4rem;
-    color: var(--white);
-    margin-bottom: 10px;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+/* ── Logo más grande ── */
+.hero-logo {
+    width: 420px;
+    max-width: 72vw;
+    filter: drop-shadow(0 4px 24px rgba(0,0,0,0.75));
 }
 
-.hero-content p {
-    font-size: 1.2rem;
-    letter-spacing: 2px;
+/* ── "Vive la aventura..." ── */
+.hero-sub {
+    font-size: 1.05rem;
+    letter-spacing: 3px;
     text-transform: uppercase;
-    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+    color: #fff;
+    margin: 0;
+    background: linear-gradient(
+        135deg,
+        rgba(181,146,80,0.22) 0%,
+        rgba(10,8,5,0.58) 50%,
+        rgba(181,146,80,0.22) 100%
+    );
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    padding: 9px 26px;
+    border-radius: 5px;
+    border: 1px solid rgba(181,146,80,0.45);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.85);
+}
+
+/* ── "Puerto Peñasco, Sonora" ── */
+.hero-location {
+    font-size: 0.78rem;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: #f0d070;
+    background: linear-gradient(
+        135deg,
+        rgba(10,8,5,0.65) 0%,
+        rgba(40,30,10,0.6) 100%
+    );
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border: 1px solid rgba(181,146,80,0.65);
+    padding: 6px 20px;
+    border-radius: 30px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+}
+
+/* ── Dots más arriba ── */
+.hero-dots {
+    position: absolute;
+    bottom: 168px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    gap: 8px;
+    z-index: 3;
+}
+
+.hero-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.4);
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s;
+    padding: 0;
+}
+
+.hero-dot.active {
+    background: #b59250;
+    width: 24px;
+    border-radius: 4px;
 }

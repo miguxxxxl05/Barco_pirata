@@ -18,7 +18,7 @@ const BookingBar = ({ onReserveNow }) => {
             const { data: settings } = await supabase.from('global_settings').select('boat_capacity').eq('id', 1).single();
             if (settings) setGlobalCapacity(settings.boat_capacity);
 
-            const { data: reservations } = await supabase.from('reservations').select('reservation_date, persons_count').neq('status', 'cancelled').neq('status', 'pending');
+            const { data: reservations } = await supabase.from('reservations').select('reservation_date, persons_count').neq('status', 'cancelled');
             if (reservations) {
                 const usage = {};
                 reservations.forEach(r => {
@@ -76,6 +76,8 @@ const BookingBar = ({ onReserveNow }) => {
             <button
                 className="btn-primary booking-btn"
                 onClick={() => onReserveNow(selectedDate, persons)}
+                disabled={!selectedDate}
+                title={!selectedDate ? 'Selecciona una fecha primero' : ''}
             >
                 RESERVAR AHORA
             </button>

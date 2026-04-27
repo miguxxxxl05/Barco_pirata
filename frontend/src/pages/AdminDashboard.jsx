@@ -5,6 +5,8 @@ import PaymentModal from '../components/PaymentModal';
 import DailyReportModal from '../components/DailyReportModal';
 import AnnualReportModal from '../components/AnnualReportModal';
 import ActivityLogModal from '../components/ActivityLogModal';
+import BackupModal from '../components/BackupModal';
+import Voucher from '../components/Voucher';
 import { logActivity } from '../utils/logger';
 
 const AdminDashboard = () => {
@@ -31,9 +33,34 @@ const AdminDashboard = () => {
     const [isCreating, setIsCreating] = useState(false);
     const [editingPkg, setEditingPkg] = useState(null);
     const [activePaymentReservation, setActivePaymentReservation] = useState(null);
+    const [activePaymentMode, setActivePaymentMode] = useState('admin-cobrar');
     const [reportModalDate, setReportModalDate] = useState(null);
     const [showAnnualReport, setShowAnnualReport] = useState(false);
     const [showActivityLog, setShowActivityLog] = useState(false);
+    const [showBackupModal, setShowBackupModal] = useState(false);
+    const [viewingReceiptData, setViewingReceiptData] = useState(null);
+
+    const handleViewReceipt = async (r) => {
+        const { data: payment } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('reservation_id', r.id)
+            .order('payment_date', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+        setViewingReceiptData({
+            reservation: r,
+            receipt: {
+                paymentId: String(r.id).substring(0, 8).toUpperCase(),
+                date: payment?.payment_date || r.created_at || new Date().toISOString(),
+                method: payment?.payment_method || 'card',
+                amount: r.total_price,
+                client: r.contact_name,
+                package: r.packages?.name || 'Venta General',
+            },
+        });
+    };
 
     // Filtros
     const [filterDate, setFilterDate] = useState('');
@@ -56,6 +83,7 @@ const AdminDashboard = () => {
     });
 
     const pendingReservations = reservations.filter(r => r.status === 'pending');
+    const awaitingCashReservations = reservations.filter(r => r.status === 'awaiting_cash');
 
     const filteredReservations = reservations.filter(r => {
         if (filterDate && r.reservation_date !== filterDate) return false;
@@ -246,10 +274,16 @@ const AdminDashboard = () => {
                 <Link to="/" style={{ display: 'inline-block', padding: '10px 15px', backgroundColor: '#333', color: '#fff', textDecoration: 'none', borderRadius: '4px', fontWeight: 'bold' }}>
                     Volver al Barco
                 </Link>
-                <button onClick={() => setShowActivityLog(true)} style={{ background: '#b59250', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                    Auditoría del Sistema
-                </button>
+                <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={() => setShowBackupModal(true)} style={{ background: '#2c2c2c', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                        Respaldos
+                    </button>
+                    <button onClick={() => setShowActivityLog(true)} style={{ background: '#b59250', color: 'white', border: 'none', padding: '10px 15px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        Auditoría
+                    </button>
+                </div>
             </div>
             <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: '2.5rem', marginBottom: '10px' }}>Mando de Control del Barco</h2>
             <p style={{ color: 'var(--text-light)', marginBottom: '40px' }}>Supervisa reservaciones y edita el catálogo directamente (Opción 2 Profesional).</p>
@@ -273,7 +307,7 @@ const AdminDashboard = () => {
                     Centro de Avisos Urgentes
                 </h3>
 
-                {pendingReservations.length === 0 && warnings.length === 0 ? (
+                {pendingReservations.length === 0 && awaitingCashReservations.length === 0 && warnings.length === 0 ? (
                     <div style={{ padding: '15px', background: '#d4edda', color: '#155724', borderRadius: '6px', fontWeight: 'bold', border: '1px solid #c3e6cb' }}>
                         El barco opera con normalidad. No tienes notificaciones pendientes.
                     </div>
@@ -282,6 +316,11 @@ const AdminDashboard = () => {
                         {pendingReservations.length > 0 && (
                             <div style={{ padding: '15px', background: '#fff', borderLeft: '5px solid #dc3545', borderRadius: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
                                 Tienes <strong style={{ fontSize: '1.1rem', color: '#dc3545' }}>{pendingReservations.length}</strong> reservación(es) nueva(s) esperando tu aprobación en la Bitácora.
+                            </div>
+                        )}
+                        {awaitingCashReservations.length > 0 && (
+                            <div style={{ padding: '15px', background: '#fff', borderLeft: '5px solid #e65100', borderRadius: '4px', boxShadow: '0 2px 5px rgba(0,0,0,0.05)' }}>
+                                💵 Tienes <strong style={{ fontSize: '1.1rem', color: '#e65100' }}>{awaitingCashReservations.length}</strong> reservación(es) esperando confirmación de pago en efectivo.
                             </div>
                         )}
                         {warnings.map((w, i) => (
@@ -390,6 +429,7 @@ const AdminDashboard = () => {
                         <option value="">Cualquier Estatus</option>
                         <option value="pending">Pendiente de Aprob.</option>
                         <option value="confirmed">Confirmado (Falta Cobro)</option>
+                        <option value="awaiting_cash">Esperando Pago Efectivo</option>
                         <option value="paid">Pagado (Listo para Abordar)</option>
                         <option value="in_progress">En Curso</option>
                         <option value="completed">Viaje Realizado</option>
@@ -441,23 +481,36 @@ const AdminDashboard = () => {
                                             <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                                                 <span style={{
                                                     display: 'inline-block', padding: '8px 15px', borderRadius: '20px', fontWeight: 'bold', fontSize: '0.85rem',
-                                                    backgroundColor: r.status === 'confirmed' ? '#d4edda' : (r.status === 'paid' ? '#cce5ff' : (r.status === 'in_progress' ? '#d1ecf1' : (r.status === 'completed' ? '#d4edda' : '#f8d7da'))),
-                                                    color: r.status === 'confirmed' ? '#155724' : (r.status === 'paid' ? '#004085' : (r.status === 'in_progress' ? '#0c5460' : (r.status === 'completed' ? '#155724' : '#721c24')))
+                                                    backgroundColor: r.status === 'confirmed' ? '#d4edda' : r.status === 'awaiting_cash' ? '#fff3e0' : r.status === 'paid' ? '#cce5ff' : r.status === 'in_progress' ? '#d1ecf1' : r.status === 'completed' ? '#d4edda' : '#f8d7da',
+                                                    color: r.status === 'confirmed' ? '#155724' : r.status === 'awaiting_cash' ? '#e65100' : r.status === 'paid' ? '#004085' : r.status === 'in_progress' ? '#0c5460' : r.status === 'completed' ? '#155724' : '#721c24'
                                                 }}>
                                                     {r.status === 'confirmed' ? 'Conf. (Falta Cobro)' :
+                                                        r.status === 'awaiting_cash' ? '💵 Espera Efectivo' :
                                                         r.status === 'paid' ? 'Ya Liquidado' :
                                                             r.status === 'in_progress' ? 'En Curso' :
                                                                 r.status === 'completed' ? 'Realizado' :
                                                                     'Ya Rechazado'}
                                                 </span>
                                                 {r.status === 'confirmed' && (
-                                                    <button className="btn-primary" onClick={() => setActivePaymentReservation(r)} style={{ padding: '8px 12px', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} title="Abrir Punto de Venta">Cobrar</button>
+                                                    <button className="btn-primary" onClick={() => { setActivePaymentReservation(r); setActivePaymentMode('admin-cobrar'); }} style={{ padding: '8px 12px', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} title="Abrir Punto de Venta">Cobrar</button>
+                                                )}
+                                                {r.status === 'awaiting_cash' && (
+                                                    <button className="btn-primary" onClick={() => { setActivePaymentReservation(r); setActivePaymentMode('admin-confirmar-efectivo'); }} style={{ padding: '8px 12px', borderRadius: '4px', background: '#e65100', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }} title="Confirmar recepción de efectivo">Confirmar Efectivo</button>
                                                 )}
                                                 {r.status === 'paid' && (
-                                                    <button className="btn-primary" onClick={() => handleStatusChange(r.id, 'in_progress')} style={{ padding: '8px 12px', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>Iniciar Viaje</button>
+                                                    <>
+                                                        <button className="btn-primary" onClick={() => handleStatusChange(r.id, 'in_progress')} style={{ padding: '8px 12px', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)' }}>Iniciar Viaje</button>
+                                                        <button onClick={() => handleViewReceipt(r)} style={{ padding: '8px 12px', borderRadius: '4px', background: 'white', border: '1px solid #ccc', color: '#2c2c2c', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}>📄 Recibo</button>
+                                                    </>
                                                 )}
                                                 {r.status === 'in_progress' && (
-                                                    <button onClick={() => handleStatusChange(r.id, 'completed')} style={{ padding: '8px 12px', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)', backgroundColor: '#1a1814', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Completar Viaje</button>
+                                                    <>
+                                                        <button onClick={() => handleStatusChange(r.id, 'completed')} style={{ padding: '8px 12px', borderRadius: '4px', boxShadow: '0 2px 4px rgba(0,0,0,0.2)', backgroundColor: '#1a1814', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 'bold' }}>Completar Viaje</button>
+                                                        <button onClick={() => handleViewReceipt(r)} style={{ padding: '8px 12px', borderRadius: '4px', background: 'white', border: '1px solid #ccc', color: '#2c2c2c', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}>📄 Recibo</button>
+                                                    </>
+                                                )}
+                                                {r.status === 'completed' && (
+                                                    <button onClick={() => handleViewReceipt(r)} style={{ padding: '8px 12px', borderRadius: '4px', background: 'white', border: '1px solid #ccc', color: '#2c2c2c', cursor: 'pointer', fontWeight: '600', fontSize: '0.85rem' }}>📄 Recibo</button>
                                                 )}
                                             </div>
                                         )}
@@ -480,6 +533,7 @@ const AdminDashboard = () => {
             {activePaymentReservation && (
                 <PaymentModal
                     reservation={activePaymentReservation}
+                    mode={activePaymentMode}
                     onClose={() => setActivePaymentReservation(null)}
                     onPaymentSuccess={handlePaymentSuccess}
                 />
@@ -506,6 +560,21 @@ const AdminDashboard = () => {
             {/* ----------------- MODAL DE AUDITORÍA LOGS ----------------- */}
             {showActivityLog && (
                 <ActivityLogModal onClose={() => setShowActivityLog(false)} />
+            )}
+
+            {/* ----------------- MODAL DE RESPALDOS Y RESTAURACIÓN ----------------- */}
+            {showBackupModal && (
+                <BackupModal onClose={() => setShowBackupModal(false)} />
+            )}
+
+            {/* ----------------- COMPROBANTE DE PAGO (RE-VER) ----------------- */}
+            {viewingReceiptData && (
+                <Voucher
+                    receipt={viewingReceiptData.receipt}
+                    reservation={viewingReceiptData.reservation}
+                    dark={true}
+                    onClose={() => setViewingReceiptData(null)}
+                />
             )}
         </div>
     );

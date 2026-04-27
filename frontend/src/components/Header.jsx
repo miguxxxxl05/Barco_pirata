@@ -7,49 +7,53 @@ const Header = ({ session, userRole }) => {
     const navigate = useNavigate();
 
     const handleLogout = async () => {
-        try {
-            await supabase.auth.signOut();
-        } finally {
-            window.location.href = '/'; // Forzar recarga absoluta del navegador para borrar caché
-        }
+        try { await supabase.auth.signOut(); }
+        finally { window.location.href = '/'; }
     };
 
     return (
         <header className="header">
+            {/* Barra superior */}
             <div className="header-top">
                 <div className="container header-top-content">
                     <div className="contact-info">
-                        <span><i className="phone-icon">📞</i> 638-123-4567</span>
-                        <span><i className="email-icon">✉️</i> reservas@barcopirata.com</span>
+                        <span>📞 638-123-4567</span>
+                        <span>✉️ reservas@barcopirata.com</span>
+                        <span>📍 Recinto Portuario, Puerto Peñasco</span>
                     </div>
                     <div className="user-actions">
-                        <span>ES </span> | <span> MXN </span> |
                         {session ? (
                             <>
                                 {userRole === 'admin' ? (
-                                    <Link to="/admin" style={{ color: '#b59250', fontWeight: 'bold', marginLeft: '5px', marginRight: '5px' }}>Panel Admin</Link>
+                                    <Link to="/admin" className="ua-badge ua-badge-admin">⚙️ Panel Admin</Link>
                                 ) : (
-                                    <Link to="/profile" style={{ color: 'inherit', marginLeft: '5px', marginRight: '5px' }}>🔔 Mis Notificaciones</Link>
+                                    <Link to="/profile" className="ua-badge">🔔 Mis Reservaciones</Link>
                                 )}
-                                | <span className="login" onClick={handleLogout} style={{ cursor: 'pointer', marginLeft: '5px' }}> Salir</span>
-                                <br /><span style={{ color: '#ff4444', fontSize: '12px' }}>DEBUG DB: {userRole ? `"${userRole}"` : 'null'}</span>
+                                <span className="ua-divider">|</span>
+                                <button className="ua-btn" onClick={handleLogout}>Cerrar sesión</button>
                             </>
                         ) : (
-                            <Link to="/login" style={{ color: 'inherit', marginLeft: '5px' }}> Login</Link>
+                            <Link to="/login" className="ua-badge">Iniciar sesión</Link>
                         )}
                     </div>
                 </div>
             </div>
+
+            {/* Logo y navegación */}
             <div className="header-main">
                 <div className="container header-main-content">
                     <div className="logo">
-                        <Link to="/"><h2>BARCO PIRATA</h2></Link>
+                        <Link to="/" className="logo-wrap">
+                            <div className="logo-text">
+                                <span className="logo-title">BARCO PIRATA</span>
+                            </div>
+                        </Link>
                     </div>
                     <nav className="nav-menu">
                         <ul>
                             <li><Link to="/">Inicio</Link></li>
                             <li><a href="/#packages">Paquetes</a></li>
-                            <li><a href="/#reservation">Reservaciones</a></li>
+                            <li><a href="/#reservation">Reservar</a></li>
                             <li><a href="#contact">Contacto</a></li>
                         </ul>
                     </nav>

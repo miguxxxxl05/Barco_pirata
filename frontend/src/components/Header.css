@@ -1,8 +1,9 @@
 .header-top {
-    background-color: var(--text-dark);
+    background: linear-gradient(90deg, #1a1510 0%, #2c2010 50%, #1a1510 100%);
+    border-bottom: 1px solid rgba(181,146,80,0.3);
     color: #ccc;
-    font-size: 0.8rem;
-    padding: 8px 0;
+    font-size: 0.78rem;
+    padding: 7px 0;
 }
 
 .header-top-content {
@@ -11,44 +12,140 @@
     align-items: center;
 }
 
-.contact-info span {
-    margin-right: 20px;
+.contact-info {
+    display: flex;
+    align-items: center;
+    gap: 20px;
 }
 
+.contact-info a,
+.contact-info span {
+    color: #c4a35a;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: color 0.2s;
+}
+
+.contact-info span:hover { color: #e8c87a; }
+
+.user-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: #a08040;
+}
+
+.user-actions a {
+    color: #c4a35a;
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s;
+}
+
+.user-actions a:hover { color: #e8c87a; }
+
+.ua-divider {
+    color: rgba(181,146,80,0.35);
+    font-size: 0.9rem;
+}
+
+.ua-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #c4a35a;
+    font-size: 0.78rem;
+    font-weight: 600;
+    padding: 0;
+    transition: color 0.2s;
+}
+
+.ua-btn:hover { color: #e8c87a; }
+
+.ua-badge {
+    background: rgba(181,146,80,0.15);
+    border: 1px solid rgba(181,146,80,0.4);
+    border-radius: 20px;
+    padding: 2px 12px;
+    color: #c4a35a;
+    font-weight: 700;
+    font-size: 0.75rem;
+    letter-spacing: 0.5px;
+}
+
+.ua-badge-admin {
+    background: rgba(181,146,80,0.25);
+    border-color: #b59250;
+    color: #f0d080;
+}
+
+/* ---- Main header ---- */
 .header-main {
     position: absolute;
     width: 100%;
-    top: 36px;
+    top: 33px;
     z-index: 10;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+    border-bottom: 1px solid rgba(255,255,255,0.1);
 }
 
 .header-main-content {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 20px 0;
+    padding: 12px 0;
     color: var(--white);
 }
 
-.logo h2 {
-    color: var(--white);
+.logo-wrap {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+}
+
+.logo-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.1;
+}
+
+.logo-title {
+    font-family: 'Playfair Display', serif;
+    font-size: 1.45rem;
+    font-weight: 700;
+    color: #fff;
     letter-spacing: 2px;
-    font-size: 1.5rem;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.5);
+}
+
+.logo-sub {
+    font-size: 0.62rem;
+    letter-spacing: 3px;
+    color: #b59250;
+    text-transform: uppercase;
+    font-family: 'Open Sans', sans-serif;
+    font-weight: 400;
 }
 
 .nav-menu ul {
     display: flex;
     gap: 30px;
+    list-style: none;
+    margin: 0;
+    padding: 0;
 }
 
 .nav-menu a {
-    font-size: 0.9rem;
+    font-size: 0.85rem;
     text-transform: uppercase;
     font-weight: 600;
-    letter-spacing: 1px;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.85);
+    transition: color 0.2s;
 }
 
-.nav-menu a:hover {
-    color: var(--primary-color);
-}
+.nav-menu a:hover { color: #b59250; }

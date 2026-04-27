@@ -1,13 +1,17 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
-import html2pdf from 'html2pdf.js';
 import { logActivity } from '../utils/logger';
+import Voucher from './Voucher';
 
-const PaymentModal = ({ reservation, onClose, onPaymentSuccess }) => {
+const PaymentModal = ({ reservation, onClose, onPaymentSuccess, mode = 'admin-cobrar' }) => {
     const [method, setMethod] = useState(''); // 'cash' | 'card'
     const [loading, setLoading] = useState(false);
     const [ccData, setCcData] = useState({ number: '', name: '', exp: '', cvv: '' });
     const [receipt, setReceipt] = useState(null);
+
+    useEffect(() => {
+        if (mode === 'admin-confirmar-efectivo') setMethod('cash');
+    }, [mode]);
 
     const handleProcessPayment = async (e) => {
         e.preventDefault();
@@ -28,9 +32,18 @@ const PaymentModal = ({ reservation, onClose, onPaymentSuccess }) => {
 
             if (resError) throw resError;
 
+            const { data: { session } } = await supabase.auth.getSession();
+            await supabase.from('payments').insert([{
+                reservation_id: reservation.id,
+                amount: reservation.total_price,
+                payment_method: method,
+                card_number_last_4: method === 'card' ? ccData.number.slice(-4) : null,
+                payment_status: 'completed',
+                processed_by: session?.user?.email || 'admin'
+            }]);
+
             await logActivity('UPDATE', 'RESERVATION', `Liquidó en ${method === 'cash' ? 'efectivo' : 'tarjeta'} el pago de la reserva #${reservation.id} por $${reservation.total_price} MXN`);
 
-            // Safe fallback string conversion to prevent integer substring crash
             const safeId = reservation.id ? String(reservation.id) : String(Math.floor(Math.random() * 1000000));
 
             setReceipt({
@@ -50,186 +63,15 @@ const PaymentModal = ({ reservation, onClose, onPaymentSuccess }) => {
         }
     };
 
-    const handleDownloadPDF = () => {
-        const element = document.getElementById('printable-voucher');
-        const opt = {
-            margin: 0.5,
-            filename: `Voucher_${receipt.paymentId.substring(0, 8)}.pdf`,
-            image: { type: 'jpeg', quality: 0.98 },
-            html2canvas: { scale: 2 },
-            jsPDF: { unit: 'in', format: 'letter', orientation: 'portrait' }
-        };
-        html2pdf().set(opt).from(element).save();
-    };
-
     if (receipt) {
         return (
-            <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(26, 24, 20, 0.92)', zIndex: 9999, overflowY: 'auto', padding: '40px 20px', display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: "'Open Sans', sans-serif" }}>
-                <style>{`
-                  @media print {
-                    body * { visibility: hidden; }
-                    #printable-voucher, #printable-voucher * { visibility: visible; }
-                    #printable-voucher {
-                      position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 20px;
-                      box-shadow: none !important;
-                    }
-                    .no-print { display: none !important; }
-                  }
-                `}</style>
-
-                {/* --- Top Card: Metadata --- */}
-                <div className="no-print" style={{ width: '100%', maxWidth: '850px', background: '#2c2c2c', borderRadius: '12px', padding: '24px', marginBottom: '24px', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '1px solid #444', paddingBottom: '20px', marginBottom: '20px' }}>
-                        <div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-                                <div style={{ background: '#b59250', padding: '10px', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                                </div>
-                                <div>
-                                    <h2 style={{ color: '#f9f9f9', margin: '0 0 4px 0', fontSize: '1.25rem', fontWeight: '600', fontFamily: "'Playfair Display', serif" }}>Detalles del Recibo</h2>
-                                    <span style={{ color: '#b59250', fontSize: '0.875rem', fontFamily: 'monospace' }}>#{receipt.paymentId.split('-')[0].toUpperCase()}</span>
-                                </div>
-                            </div>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <span style={{ border: '1px solid #b59250', color: '#b59250', background: 'rgba(181, 146, 80, 0.15)', padding: '6px 12px', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 'bold' }}>COMPLETADO</span>
-                            <button onClick={() => { onPaymentSuccess(); onClose(); }} style={{ background: 'transparent', border: 'none', color: '#999', cursor: 'pointer', fontSize: '1.25rem', padding: '4px', display: 'flex' }}>✕</button>
-                        </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '20px' }}>
-                        <div>
-                            <div style={{ color: '#999', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>FECHA DE EMISIÓN</div>
-                            <div style={{ color: '#f9f9f9', fontSize: '0.95rem' }}>{new Date(receipt.date).toLocaleDateString()}</div>
-                        </div>
-                        <div>
-                            <div style={{ color: '#999', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>CLIENTE</div>
-                            <div style={{ color: '#f9f9f9', fontSize: '0.95rem' }}>{receipt.client}</div>
-                        </div>
-                        <div>
-                            <div style={{ color: '#999', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>MÉTODO DE PAGO</div>
-                            <div style={{ color: '#f9f9f9', fontSize: '0.95rem' }}>{receipt.method === 'cash' ? 'Efectivo' : 'Tarjeta'}</div>
-                        </div>
-                        <div>
-                            <div style={{ color: '#999', fontSize: '0.75rem', fontWeight: 'bold', textTransform: 'uppercase', marginBottom: '6px' }}>TOTAL PAGADO</div>
-                            <div style={{ color: '#f9f9f9', fontSize: '0.95rem', fontWeight: 'bold' }}>${receipt.amount} MXN</div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* --- Bottom Card: Preview --- */}
-                <div className="no-print" style={{ width: '100%', maxWidth: '850px', background: '#2c2c2c', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.5)' }}>
-                    <div style={{ background: '#1a1814', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '15px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', color: '#f9f9f9', fontSize: '0.9rem', fontWeight: '500' }}>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#b59250" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
-                            Documento Digitalizado
-                        </div>
-                        <div style={{ display: 'flex', gap: '15px' }}>
-                            <button onClick={() => window.print()} style={{ background: 'transparent', border: 'none', color: '#b59250', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600' }}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
-                                Imprimir Original
-                            </button>
-                            <button onClick={() => handleDownloadPDF()} style={{ background: 'transparent', border: 'none', color: '#b59250', cursor: 'pointer', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600' }}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
-                                Descargar PDF
-                            </button>
-                        </div>
-                    </div>
-
-                    <div style={{ padding: '40px 20px', background: '#e0e0e0', display: 'flex', justifyContent: 'center', overflowX: 'auto' }}>
-                        {/* THE ACTUAL VOUCHER DIV */}
-                        <div id="printable-voucher" style={{ background: 'white', padding: '40px', borderRadius: '4px', width: '700px', maxWidth: '100%', textAlign: 'left', fontFamily: "'Open Sans', Arial, sans-serif", color: '#2c2c2c', boxShadow: '0 0 15px rgba(0,0,0,0.2)', flexShrink: 0 }}>
-                            {/* Header */}
-                            <div style={{ border: '1px solid #b59250', borderRadius: '8px', padding: '20px', marginBottom: '30px', textAlign: 'center' }}>
-                                <h1 style={{ color: '#2c2c2c', fontSize: '2.5rem', margin: '0 0 10px 0', fontFamily: "'Playfair Display', serif" }}>Barco Pirata</h1>
-                                <div style={{ display: 'flex', justifyContent: 'center', gap: '20px', color: '#777', fontSize: '0.9rem', flexWrap: 'wrap' }}>
-                                    <span>Recinto Portuario, P.P. Sonora</span>
-                                    <span>Tel: 638-123-4567</span>
-                                    <span>reservas@barcopirata.com</span>
-                                </div>
-                            </div>
-
-                            {/* Body Two Columns */}
-                            <div style={{ display: 'flex', justifyContent: 'space-between', gap: '30px', marginBottom: '30px', flexWrap: 'wrap' }}>
-                                {/* Left Column */}
-                                <div style={{ flex: '1 1 250px' }}>
-                                    <h4 style={{ color: '#2c2c2c', marginBottom: '10px', fontSize: '1.1rem', margin: '0 0 10px 0', fontFamily: "'Playfair Display', serif" }}>Detalles de la reserva</h4>
-                                    <div style={{ border: '1px solid #e0e0e0', borderRadius: '6px', padding: '15px', marginBottom: '20px' }}>
-                                        <div style={{ fontWeight: 'bold', marginBottom: '8px', fontSize: '0.9rem', color: '#b59250' }}>Nombre de la unidad</div>
-                                        <div style={{ padding: '8px', border: '1px solid #e0e0e0', borderRadius: '4px', marginBottom: '15px', background: '#f9f9f9' }}>{receipt.package}</div>
-
-                                        <div>
-                                            <div style={{ fontWeight: 'bold', marginBottom: '8px', fontSize: '0.9rem', color: '#b59250' }}>Fecha de viaje</div>
-                                            <div style={{ padding: '8px', border: '1px solid #e0e0e0', borderRadius: '4px', background: '#f9f9f9' }}>{new Date(receipt.date).toLocaleDateString()}</div>
-                                        </div>
-                                    </div>
-
-                                    <h4 style={{ color: '#2c2c2c', marginBottom: '10px', fontSize: '1.1rem', margin: '0 0 10px 0', fontFamily: "'Playfair Display', serif" }}>Reservado por</h4>
-                                    <div style={{ border: '1px solid #e0e0e0', borderRadius: '6px', padding: '15px' }}>
-                                        <div style={{ fontSize: '1.1rem' }}>{receipt.client}</div>
-                                    </div>
-                                </div>
-
-                                {/* Right Column */}
-                                <div style={{ flex: '1 1 250px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
-                                    <h2 style={{ color: '#b59250', fontSize: '2.5rem', letterSpacing: '2px', marginBottom: '30px', marginTop: '0', textAlign: 'right', fontFamily: "'Playfair Display', serif" }}>RESERVA</h2>
-
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px', alignItems: 'center', width: '100%' }}>
-                                        <div style={{ width: '120px', fontWeight: 'bold', color: '#2c2c2c', textAlign: 'right', paddingRight: '15px', fontSize: '0.95rem' }}>Reserva #</div>
-                                        <div style={{ padding: '8px 12px', border: '1px solid #b59250', borderRadius: '4px', width: '150px', textAlign: 'right', background: 'rgba(181, 146, 80, 0.1)', fontFamily: 'monospace', color: '#b59250', fontWeight: 'bold' }}>{receipt.paymentId.split('-')[0].toUpperCase()}</div>
-                                    </div>
-
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px', alignItems: 'center', width: '100%' }}>
-                                        <div style={{ width: '120px', fontWeight: 'bold', color: '#2c2c2c', textAlign: 'right', paddingRight: '15px', fontSize: '0.95rem' }}>Fecha de pago</div>
-                                        <div style={{ padding: '8px 12px', border: '1px solid #e0e0e0', borderRadius: '4px', width: '150px', textAlign: 'right', background: '#f9f9f9' }}>{new Date(receipt.date).toLocaleDateString()}</div>
-                                    </div>
-
-                                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', width: '100%' }}>
-                                        <div style={{ width: '120px', fontWeight: 'bold', color: '#2c2c2c', textAlign: 'right', paddingRight: '15px', fontSize: '0.95rem' }}>Método</div>
-                                        <div style={{ padding: '8px 12px', border: '1px solid #e0e0e0', borderRadius: '4px', width: '150px', textAlign: 'right', background: '#f9f9f9' }}>{receipt.method === 'cash' ? 'Efectivo' : 'Tarjeta'}</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Big Table */}
-                            <div style={{ border: '1px solid #2c2c2c', borderRadius: '6px', overflow: 'hidden', marginBottom: '30px' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                                    <thead style={{ background: '#2c2c2c', color: '#b59250' }}>
-                                        <tr>
-                                            <th style={{ padding: '12px', textAlign: 'center', width: '15%' }}>Cantidad</th>
-                                            <th style={{ padding: '12px', textAlign: 'left' }}>Descripción</th>
-                                            <th style={{ padding: '12px', textAlign: 'right', width: '20%' }}>Precio Unitario</th>
-                                            <th style={{ padding: '12px', textAlign: 'right', width: '20%' }}>Importe</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <tr style={{ background: 'white' }}>
-                                            <td style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #e0e0e0' }}>1</td>
-                                            <td style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #e0e0e0' }}>{receipt.package}</td>
-                                            <td style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>${receipt.amount}</td>
-                                            <td style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #e0e0e0' }}>${receipt.amount}</td>
-                                        </tr>
-                                        <tr style={{ background: 'rgba(181, 146, 80, 0.1)' }}>
-                                            <td colSpan="3" style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: '#2c2c2c', borderTop: '1px solid #2c2c2c' }}>Total</td>
-                                            <td style={{ padding: '12px', textAlign: 'right', fontWeight: 'bold', color: '#2c2c2c', borderTop: '1px solid #2c2c2c', fontSize: '1.1rem' }}>${receipt.amount} MXN</td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-
-                            <div style={{ marginBottom: '10px' }}>
-                                <h4 style={{ color: '#b59250', marginBottom: '10px', fontSize: '1rem', display: 'flex', alignItems: 'center', gap: '8px', margin: '0 0 10px 0', fontFamily: "'Playfair Display', serif" }}>
-                                    Información adicional
-                                </h4>
-                                <div style={{ border: '1px solid #e0e0e0', borderRadius: '6px', padding: '15px', color: '#777', fontSize: '0.85rem', lineHeight: '1.5', background: '#f9f9f9' }}>
-                                    Favor de llegar al recinto de abordaje 30 minutos antes. Todas las ventas son finales según el reglamento aplicable. Este comprobante asegura la liquidez del paquete contratado previamente. Presente este folio al abordar.
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        )
+            <Voucher
+                receipt={receipt}
+                reservation={reservation}
+                dark={true}
+                onClose={() => { onPaymentSuccess(); onClose(); }}
+            />
+        );
     }
 
     return (
@@ -260,9 +102,11 @@ const PaymentModal = ({ reservation, onClose, onPaymentSuccess }) => {
                         {/* LEFT COLUMN: Input Form */}
                         <div style={{ flex: '1 1 400px', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
                             <div style={{ marginBottom: '25px' }}>
-                                <span style={{ textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.75rem', color: '#b59250', fontWeight: 'bold' }}>Reservar</span>
+                                <span style={{ textTransform: 'uppercase', letterSpacing: '1px', fontSize: '0.75rem', color: '#b59250', fontWeight: 'bold' }}>
+                                    {mode === 'admin-confirmar-efectivo' ? 'Taquilla' : 'Reservar'}
+                                </span>
                                 <h1 style={{ fontFamily: "'Playfair Display', serif", margin: '5px 0', fontSize: '2rem', color: '#2c2c2c' }}>
-                                    {method === 'card' ? 'Pago con tarjeta' : 'Pago en efectivo'}
+                                    {mode === 'admin-confirmar-efectivo' ? 'Confirmar pago en efectivo' : (method === 'card' ? 'Pago con tarjeta' : 'Pago en efectivo')}
                                 </h1>
                                 <p style={{ color: '#777', fontSize: '0.9rem' }}>
                                     {method === 'card' ? `Ingresa los datos de tu tarjeta para completar la reservación.` : `Confirma la recepción del efectivo en mostrador.`}
@@ -335,9 +179,11 @@ const PaymentModal = ({ reservation, onClose, onPaymentSuccess }) => {
                                     <div style={{ fontSize: '1.8rem', fontWeight: 'bold', color: '#2c2c2c', lineHeight: '1' }}>${reservation.total_price}</div>
                                 </div>
                                 <div style={{ display: 'flex', gap: '15px' }}>
-                                    <button type="button" onClick={() => setMethod('')} style={{ background: 'transparent', color: '#777', border: '1px solid #ccc', padding: '12px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Volver</button>
+                                    {mode !== 'admin-confirmar-efectivo' && (
+                                        <button type="button" onClick={() => setMethod('')} style={{ background: 'transparent', color: '#777', border: '1px solid #ccc', padding: '12px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>Volver</button>
+                                    )}
                                     <button type="submit" disabled={loading} style={{ background: '#b59250', color: 'white', border: 'none', padding: '12px 25px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '1rem', boxShadow: '0 4px 10px rgba(181, 146, 80, 0.3)' }}>
-                                        {loading ? 'Procesando...' : 'Pagar ahora'}
+                                        {loading ? 'Procesando...' : (mode === 'admin-confirmar-efectivo' ? 'Confirmar pago recibido' : 'Pagar ahora')}
                                     </button>
                                 </div>
                             </div>
@@ -393,7 +239,7 @@ const PaymentModal = ({ reservation, onClose, onPaymentSuccess }) => {
                 )}
             </div>
         </div>
-    )
+    );
 }
 
 export default PaymentModal;
